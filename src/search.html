@@ -1,0 +1,38 @@
+<!doctype html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <link rel="stylesheet" href="search.css"/>
+</head>
+<body class='loading'>
+    <div id="loaderContainer">
+        <span class="lengthMeasurement">MIDLAND ARCHIVE</span>
+        <span class="lengthMeasurement">MIDLANDARCHIVE</span>
+        <div id="loaderWrapper">
+            <div id="progressWrapper">
+                <span id="mask">MIDLAND ARCHIVE</span>
+            </div>
+            <span id="title">MIDLAND ARCHIVE</span>
+            <div id="loaderGraphic"></div>
+        </div>
+    </div>
+    <img src="mirror.png" alt="Midland Mirror Logo">
+    <form action="#" onsubmit="return false;">
+        <input id="searchBar" type="search" name="search" onkeydown="if (event.keyCode===13) {this.blur();doSearch()}">
+        <button id="searchButton" value="Search" type="submit" onclick="doSearch()">Search</button>
+    </form>
+    <div id="links">
+        <a href="about.html" target="_blank">About</a>
+        <a href="tips.html" target="_blank">Searching Tips</a>
+    </div>
+    <div id="inputs"></div>
+    <div id="searchTermsWrapper">
+        <div id="searchTerms"></div>
+    </div>
+    <table id="result"></table>
+    <script src="utils.js"></script>
+    <script src="searcher.js"></script>
+    <script src="context.js"></script>
+    <script src="contextTextTrain.js"></script>
+    <script src="search.js"></script>
+</body>

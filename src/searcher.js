@@ -101,14 +101,17 @@
             },
             partialExact: function(term) {
                 term = term.replace(self.commonRegex.nonWordCharacters, '');
-                var searchArr = [term];
-                if (!self.options.caseSensitive) {
-                    var stemmed = self.stemmer(term);
-                    var origForms = self.stemIndex[stemmed] || [];
-                    searchArr = [stemmed].concat(origForms).filter(function(q) {
+                var stemmed = self.stemmer(term);
+                var origForms = self.stemIndex[stemmed] || [];
+                var searchArr = [stemmed].concat(origForms).filter(function(q) {
+                    q = q.replace(self.commonRegex.nonWordCharacters, '');
+                    if (self.options.caseSensitive) {
+                        return q === term;
+                    } else {
                         return q.toLowerCase() === term.toLowerCase();
-                    });
-                }
+                    }
+                });
+
                 return searchInOrigIndex(searchArr);
             },
             regular: function(term) {
@@ -196,7 +199,7 @@
                 totalResults += rst.length;
             });
         }
-        var stopWords = ["i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this", "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing", "a", "an", "the", "and", "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with", "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "can", "will", "just", "don't", "should", "now"];
+        var stopWords = ['i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your', 'yours', 'yourself', 'yourselves', 'he', 'him', 'his', 'himself', 'she', 'her', 'hers', 'herself', 'it', 'its', 'itself', 'they', 'them', 'their', 'theirs', 'themselves', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'would', 'should', 'could', 'ought', "i'm", "you're", "he's", "she's", "it's", "we're", "they're", "i've", "you've", "we've", "they've", "i'd", "you'd", "he'd", "she'd", "we'd", "they'd", "i'll", "you'll", "he'll", "she'll", "we'll", "they'll", "isn't", "aren't", "wasn't", "weren't", "hasn't", "haven't", "hadn't", "doesn't", "don't", "didn't", "won't", "wouldn't", "shan't", "shouldn't", "can't", 'cannot', "couldn't", "mustn't", "let's", "that's", "who's", "what's", "here's", "there's", "when's", "where's", "why's", "how's", 'a', 'an', 'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of', 'at', 'by', 'for', 'with', 'about', 'against', 'between', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'to', 'from', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very'];
         var stopWordsInQuery = [];
         var queryLength = queryArr.length;
 
@@ -313,7 +316,7 @@
 
         var queryArr = [];
 
-        // replace special quotation marks: â€œâ€â€˜â€™
+        // replace special quotation marks: “”‘’
         query = query.replace(this.commonRegex.sglQuote, "'").replace(this.commonRegex.dblQuote, '"');
 
         // separate exact vs regular keywords
@@ -531,10 +534,10 @@
         var result, word;
 
         while ((result = wordExtractor.exec(text))) {
-            // i could've done this on the entire text. however, that will create some noncollectable garbage
-            // memory until the end of this function since I have to keep the original text (for displaying context)
-            // Also, one can change this line to support more languages, but it will 
-            word = result[0].replace(nonWordCharacters, '');
+            // it turns out that I cannot find a way to apply this on the 
+            // entire string without changing the position of each word.
+            // One can change this line to support more languages
+            word = result[0];
             if (word) {
                 var dictEntry = origIndex[word];
                 if (!dictEntry) {
@@ -545,14 +548,15 @@
             }
         }
 
-        var checkNotFullWordRe = /[^a-z]/i;
+        var checkContainsNumberRe = /\d/;
         for (var i in origIndex) {
 
-            if (checkNotFullWordRe.test(i)) {
+            // if a word contains number, it's rather meaningless to stem it
+            if (checkContainsNumberRe.test(i)) {
                 continue;
             }
 
-            var stemmed = stemmer(i);
+            var stemmed = stemmer(i.replace(nonWordCharacters, ''));
 
             if (stemmed === i) {
                 continue;
@@ -638,159 +642,93 @@
     }
 
     Searcher.prototype.createStemmer = function() {
-        // https://github.com/words/stemmer
-        // Standard suffix manipulations.
-        var step2list = {
-            ational: 'ate',
-            tional: 'tion',
-            enci: 'ence',
-            anci: 'ance',
-            izer: 'ize',
-            bli: 'ble',
-            alli: 'al',
-            entli: 'ent',
-            eli: 'e',
-            ousli: 'ous',
-            ization: 'ize',
-            ation: 'ate',
-            ator: 'ate',
-            alism: 'al',
-            iveness: 'ive',
-            fulness: 'ful',
-            ousness: 'ous',
-            aliti: 'al',
-            iviti: 'ive',
-            biliti: 'ble',
-            logi: 'log'
+        // https://github.com/words/lancaster-stemmer
+        var stop = -1
+        var intact = 0
+        var cont = 1
+        var protect = 2
+        var vowels = /[aeiouy]/
+
+        // each innermost array was {match: arr[0], replacement: arr[1], type: arr[2]}
+        // i changed it so that the code looks more compact
+        var rules = {
+            "a": [["ia", "", intact], ["a", "", intact]],
+            "b": [["bb", "b", stop]],
+            "c": [["ytic", "ys", stop], ["ic", "", cont], ["nc", "nt", cont]],
+            "d": [["dd", "d", stop], ["ied", "y", cont], ["ceed", "cess", stop], ["eed", "ee", stop], ["ed", "", cont], ["hood", "", cont]],
+            "e": [["e", "", cont]],
+            "f": [["lief", "liev", stop], ["if", "", cont]],
+            "g": [["ing", "", cont], ["iag", "y", stop], ["ag", "", cont], ["gg", "g", stop]],
+            "h": [["th", "", intact], ["guish", "ct", stop], ["ish", "", cont]],
+            "i": [["i", "", intact], ["i", "y", cont]],
+            "j": [["ij", "id", stop], ["fuj", "fus", stop], ["uj", "ud", stop], ["oj", "od", stop], ["hej", "her", stop], ["verj", "vert", stop], ["misj", "mit", stop], ["nj", "nd", stop], ["j", "s", stop]],
+            "l": [["ifiabl", "", stop], ["iabl", "y", stop], ["abl", "", cont], ["ibl", "", stop], ["bil", "bl", cont], ["cl", "c", stop], ["iful", "y", stop], ["ful", "", cont], ["ul", "", stop], ["ial", "", cont], ["ual", "", cont], ["al", "", cont], ["ll", "l", stop]],
+            "m": [["ium", "", stop], ["um", "", intact], ["ism", "", cont], ["mm", "m", stop]],
+            "n": [["sion", "j", cont], ["xion", "ct", stop], ["ion", "", cont], ["ian", "", cont], ["an", "", cont], ["een", "", protect], ["en", "", cont], ["nn", "n", stop]],
+            "p": [["ship", "", cont], ["pp", "p", stop]],
+            "r": [["er", "", cont], ["ear", "", protect], ["ar", "", stop], ["ior", "", cont], ["or", "", cont], ["ur", "", cont], ["rr", "r", stop], ["tr", "t", cont], ["ier", "y", cont]],
+            "s": [["ies", "y", cont], ["sis", "s", stop], ["is", "", cont], ["ness", "", cont], ["ss", "", protect], ["ous", "", cont], ["us", "", intact], ["s", "", cont], ["s", "", stop]],
+            "t": [["plicat", "ply", stop], ["at", "", cont], ["ment", "", cont], ["ent", "", cont], ["ant", "", cont], ["ript", "rib", stop], ["orpt", "orb", stop], ["duct", "duc", stop], ["sumpt", "sum", stop], ["cept", "ceiv", stop], ["olut", "olv", stop], ["sist", "", protect], ["ist", "", cont], ["tt", "t", stop]],
+            "u": [["iqu", "", stop], ["ogu", "og", stop]],
+            "v": [["siv", "j", cont], ["eiv", "", protect], ["iv", "", cont]],
+            "y": [["bly", "bl", cont], ["ily", "y", cont], ["ply", "", protect], ["ly", "", cont], ["ogy", "og", stop], ["phy", "ph", stop], ["omy", "om", stop], ["opy", "op", stop], ["ity", "", cont], ["ety", "", cont], ["lty", "l", stop], ["istry", "", stop], ["ary", "", cont], ["ory", "", cont], ["ify", "", stop], ["ncy", "nt", cont], ["acy", "", cont]],
+            "z": [["iz", "", cont], ["yz", "ys", stop]]
         }
 
-        var step3list = {
-            icate: 'ic',
-            ative: '',
-            alize: 'al',
-            iciti: 'ic',
-            ical: 'ic',
-            ful: '',
-            ness: ''
+        // Detect if a value is acceptable to return, or should be stemmed further.
+        function acceptable(value) {
+            return vowels.test(value.charAt(0)) ? value.length > 1 : value.length > 2 && vowels.test(value)
         }
 
-        // Consonant-vowel sequences.
-        var consonant = '[^aeiou]'
-        var vowel = '[aeiouy]'
-        var consonants = '(' + consonant + '[^aeiouy]*)'
-        var vowels = '(' + vowel + '[aeiou]*)'
+        function applyRules(value, isintact) {
+            var ruleset = rules[value.charAt(value.length - 1)]
+            var breakpoint
+            var index
+            var length
+            var rule
+            var next
 
-        var gt0 = new RegExp('^' + consonants + '?' + vowels + consonants)
-        var eq1 = new RegExp('^' + consonants + '?' + vowels + consonants + vowels + '?$')
-        var gt1 = new RegExp('^' + consonants + '?(' + vowels + consonants + '){2,}')
-        var vowelInStem = new RegExp('^' + consonants + '?' + vowel)
-        var consonantLike = new RegExp('^' + consonants + vowel + '[^aeiouwxy]$')
-
-        // Exception expressions.
-        var sfxLl = /ll$/
-        var sfxE = /^(.+?)e$/
-        var sfxY = /^(.+?)y$/
-        var sfxIon = /^(.+?(s|t))(ion)$/
-        var sfxEdOrIng = /^(.+?)(ed|ing)$/
-        var sfxAtOrBlOrIz = /(at|bl|iz)$/
-        var sfxEED = /^(.+?)eed$/
-        var sfxS = /^.+?[^s]s$/
-        var sfxSsesOrIes = /^.+?(ss|i)es$/
-        var sfxMultiConsonantLike = /([^aeiouylsz])\1$/
-        var step2 = /^(.+?)(ational|tional|enci|anci|izer|bli|alli|entli|eli|ousli|ization|ation|ator|alism|iveness|fulness|ousness|aliti|iviti|biliti|logi)$/
-        var step3 = /^(.+?)(icate|ative|alize|iciti|ical|ful|ness)$/
-        var step4 = /^(.+?)(al|ance|ence|er|ic|able|ible|ant|ement|ment|ent|ou|ism|ate|iti|ous|ive|ize)$/
-
-        // Stem `value`.
-        // eslint-disable-next-line complexity
-        return function stemmer(value) {
-            // Exit early.
-            if (value.length < 3) {
+            if (!ruleset) {
                 return value
             }
 
-            var firstCharacterWasLowerCaseY
-            var match
+            index = -1
+            length = ruleset.length
 
-            value = String(value).toLowerCase()
+            while (++index < length) {
+                rule = ruleset[index]
 
-            // Detect initial `y`, make sure it never matches.
-            if (value.charCodeAt(0) === 121 // Lowercase Y
-            ) {
-                firstCharacterWasLowerCaseY = true
-                value = 'Y' + value.slice(1)
-            }
-
-            // Step 1a.
-            if (sfxSsesOrIes.test(value)) {
-                // Remove last two characters.
-                value = value.slice(0, value.length - 2)
-            } else if (sfxS.test(value)) {
-                // Remove last character.
-                value = value.slice(0, value.length - 1)
-            }
-
-            // Step 1b.
-            if ((match = sfxEED.exec(value))) {
-                if (gt0.test(match[1])) {
-                    // Remove last character.
-                    value = value.slice(0, value.length - 1)
+                if (!isintact && rule[2] === intact) {
+                    continue
                 }
-            } else if ((match = sfxEdOrIng.exec(value)) && vowelInStem.test(match[1])) {
-                value = match[1]
 
-                if (sfxAtOrBlOrIz.test(value)) {
-                    // Append `e`.
-                    value += 'e'
-                } else if (sfxMultiConsonantLike.test(value)) {
-                    // Remove last character.
-                    value = value.slice(0, value.length - 1)
-                } else if (consonantLike.test(value)) {
-                    // Append `e`.
-                    value += 'e'
+                breakpoint = value.length - rule[0].length
+
+                if (breakpoint < 0 || value.slice(breakpoint) !== rule[0]) {
+                    continue
                 }
-            }
 
-            // Step 1c.
-            if ((match = sfxY.exec(value)) && vowelInStem.test(match[1])) {
-                // Remove suffixing `y` and append `i`.
-                value = match[1] + 'i'
-            }
-
-            // Step 2.
-            if ((match = step2.exec(value)) && gt0.test(match[1])) {
-                value = match[1] + step2list[match[2]]
-            }
-
-            // Step 3.
-            if ((match = step3.exec(value)) && gt0.test(match[1])) {
-                value = match[1] + step3list[match[2]]
-            }
-
-            // Step 4.
-            if ((match = step4.exec(value))) {
-                if (gt1.test(match[1])) {
-                    value = match[1]
+                if (rule[2] === protect) {
+                    return value
                 }
-            } else if ((match = sfxIon.exec(value)) && gt1.test(match[1])) {
-                value = match[1]
-            }
 
-            // Step 5.
-            if ((match = sfxE.exec(value)) && (gt1.test(match[1]) || (eq1.test(match[1]) && !consonantLike.test(match[1])))) {
-                value = match[1]
-            }
+                next = value.slice(0, breakpoint) + rule[1]
 
-            if (sfxLl.test(value) && gt1.test(value)) {
-                value = value.slice(0, value.length - 1)
-            }
+                if (!acceptable(next)) {
+                    continue
+                }
 
-            // Turn initial `Y` back to `y`.
-            if (firstCharacterWasLowerCaseY) {
-                value = 'y' + value.slice(1)
+                if (rule[2] === cont) {
+                    return applyRules(next, false)
+                }
+
+                return next
             }
 
             return value
+        }
+        return function lancasterStemmer(value) {
+            return applyRules(String(value).toLowerCase(), true)
         }
     }
     Searcher.prototype.convertToTargetIndex = function(arr, target) {

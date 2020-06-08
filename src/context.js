@@ -124,7 +124,9 @@ Context.prototype.createContextTimeout = function(cursorArticleId, cursorArticle
 }
 
 Context.prototype.clickListener = function(event) {
-    this.createContextTimeout(this.cursorArticleId, this.cursorArticleIndex, 0);
+    if (!this.cursorInitiatedArticleChangeHandled) {
+        this.getContext(this.cursorArticleId, this.cursorArticleIndex, 0, true);
+    }
 }
 
 Context.prototype.getContext = function(articleId, middleIndex, overlapDirection, cursorInitiated) {

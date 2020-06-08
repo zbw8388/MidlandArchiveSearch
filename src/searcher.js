@@ -73,7 +73,7 @@
             partialExact: function(term) {
                 // idea: use the normal searching method, and then for each occurrence,
                 // verify that it's actually partialExact, or it's actually spelled like
-                // that in the original text
+                // the original term
                 var results = self.index[self.encoder(term)] || [];
                 var wordExtractor = self.commonRegex.wordExtractor;
                 var nonWordCharacters = self.commonRegex.nonWordCharacters;

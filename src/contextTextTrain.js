@@ -1,11 +1,12 @@
 function ContextTextTrain(parent, childrenWidth) {
     this.index = -1;
-    this.moving = false;
     this.childrenWidth = childrenWidth;
 
     this.parent = parent;
 
     this.train = el('div', parent, 'contextTextWrapper');
+    this.train.addEventListener('transitionend', this.transitionEnd.bind(this));
+    
     this.items = []
     this.pendingTransition = [];
 
@@ -62,15 +63,10 @@ ContextTextTrain.prototype.startTransition = function() {
     while (transition = this.pendingTransition.shift()) {
         transition[0].style[transition[1]] = transition[2];
     }
-    if (!this.moving) {
-        this.train.addEventListener('transitionend', this.transitionEnd.bind(this));
-    }
-    this.moving = true;
 }
 
 ContextTextTrain.prototype.transitionEnd = function(event) {
     if (event.propertyName === 'left') {
-        this.moving = false;
         // clean up the "train" if it's too long
         if (this.items.length >= 8) {
             for (var i = this.items.length - 1; i >= 0; i--) {

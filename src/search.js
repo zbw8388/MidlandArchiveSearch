@@ -396,7 +396,8 @@ Display.prototype.generateindexPlot = function(data) {
     border.addEventListener('mouseout', context.leave.bind(context));
     border.addEventListener('touchend', context.leave.bind(context));
 
-    border.addEventListener('click', context.clickListener.bind(context));
+    new TouchMouseEventListener(border, context.clickListener, context)
+//     border.addEventListener('click', context.clickListener.bind(context));
 
     return box;
 }

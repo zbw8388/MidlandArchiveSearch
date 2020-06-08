@@ -274,7 +274,7 @@ html {
 .contextWrapper.show {
     pointer-events: auto;
     opacity: 1;
-    transition: all 0.3s ease-out;
+    transition: all 0.3s ease-in-out;
 }
 
 .contextControl {
@@ -378,7 +378,11 @@ html {
     border: 5px solid transparent;
     border-top-color: black;
     margin-left: -5px;
-    transition: all 0.25s ease-out;
+    transition: all 0.25s ease-in-out;
+}
+
+.contextWrapper.show.cursorInitiated, .contextWrapper.show.cursorInitiated .contextLocation {
+    transition-timing-function: ease-out;
 }
 
 .query {
@@ -450,9 +454,6 @@ html {
     color: transparent;
     opacity: 0.8;
     transition: background-position-x linear 0.5s;
-}
-
-#loaderContainer #title {
 }
 
 #loaderGraphic, #loaderGraphic:before, #loaderGraphic:after {

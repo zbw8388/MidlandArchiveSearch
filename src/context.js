@@ -13,6 +13,7 @@ function Context() {
     this.bubbleArticleId = null;
     this.bubbleSvgWrapper = null;
     this.bubbleArticleIndex = null;
+    this.cursorInitiatedBubbleChange = false;
     this.prevRange = [null, null];
     this.turnPageMethod = 0;
     this.hitArticleEnd = 0;
@@ -117,7 +118,7 @@ Context.prototype.createContextTimeout = function(cursorArticleId, cursorArticle
     var self = this;
     this.timeout = setTimeout(function() {
         if (self.cursorArticleId === cursorArticleId && self.cursorArticleIndex === cursorArticleIndex && !self.cursorInitiatedArticleChangeHandled) {
-            self.getContext(cursorArticleId, cursorArticleIndex, 0);
+            self.getContext(cursorArticleId, cursorArticleIndex, 0, true);
         }
     }, time);
 }
@@ -126,7 +127,7 @@ Context.prototype.clickListener = function(event) {
     this.createContextTimeout(this.cursorArticleId, this.cursorArticleIndex, 0);
 }
 
-Context.prototype.getContext = function(articleId, middleIndex, overlapDirection) {
+Context.prototype.getContext = function(articleId, middleIndex, overlapDirection, cursorInitiated) {
     middleIndex = typeof middleIndex === 'number' ? middleIndex : this.bubbleArticleIndex;
     articleId = typeof articleId === 'number' ? articleId : this.bubbleArticleId;
     overlapDirection = overlapDirection || 0;
@@ -159,6 +160,7 @@ Context.prototype.getContext = function(articleId, middleIndex, overlapDirection
 
     this.hitArticleEnd = st === 0 ? -1 : fi === articleLength ? 1 : 0;
     this.turnPageMethod = overlapExist ? overlapDirection : 0;
+    this.cursorInitiatedBubbleChange = cursorInitiated;
     this.cursorInitiatedArticleChangeHandled = true;
 
     if (overlapExist && this.bubbleTextWrapperController.pageExist(overlapDirection)) {
@@ -238,6 +240,12 @@ Context.prototype.showBubble = function(newText) {
 
     bubble.classList.add('initialized');
     bubble.classList.add('show');
+    if (this.cursorInitiatedBubbleChange) {
+        this.cursorInitiatedBubbleChange = false;
+        bubble.classList.add('cursorInitiated');
+    } else {
+        bubble.classList.remove('cursorInitiated');
+    }
 
     this.bubbleArticleIndex = bubbleArticleIndex;
 

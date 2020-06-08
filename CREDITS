@@ -1,5 +1,6 @@
-Porter Stemmer
-https://github.com/words/stemmer
+lancaster-stemmer
+https://github.com/words/lancaster-stemmer
+(The MIT License)
 
 Copyright (c) 2014 Titus Wormer <tituswormer@gmail.com>
 

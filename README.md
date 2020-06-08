@@ -9,14 +9,14 @@ A Client-Side Full-Text Search Engine for my High School's Newspaper and Yearboo
 - Context for each occurrence
 - Supports IE 11
 - Uses [Vanilla JS](http://vanilla-js.com/)
-- Uses [Porter Stemmer](https://github.com/words/stemmer)
+- Uses [Lancaster Stemmer](https://github.com/words/lancaster-stemmer)
 
 \* when used with a file server and we can argue about the definition
 ## Demo
 [The Actual Archive](https://midland-school.org/midland-mirror-archive/) 
 
 [Gulliver's Travels](https://raw.githack.com/zbw8388/MidlandArchiveSearch/master/demo/search.html) (Note: generated links will not work. Please just treat them as chapter titles where they should be path to files in the real setting. Year From/To function will also not work.)
-## Use it For Your Archive
+## Use it for Your Archive
 ### Generate `text.txt` file 
 #### Generate `text.txt` file from PDFs
 
@@ -40,9 +40,7 @@ A Client-Side Full-Text Search Engine for my High School's Newspaper and Yearboo
 
 #### OR, generate `text.txt` file by yourself
 
-The file has the following structure:
-
-For each file, it is recorded as the following:
+For each indexed file, it is recorded with this structure inside `text.txt`:
 
 `\x1c<file path>\x1d<file content>`
 
@@ -59,10 +57,22 @@ In your folder with all PDF files, create a new folder, called `searcher`, and m
 
 ### Customize
 
-- In `src/search.js` line 409, you can change the relative path to all your PDFs. 
-- The Year From/To input tag is using the first four characters of the file path. You can modify that behaviour at `src/search.js` line 272.
+Since this is an end product, I choose not to provide any API for changing the default behavior. Please let me know if I should!
+
+- At `src/search.js` line 39, change the file size to that of your `text.txt` and estimated yearly increase to ensure that loading progress is displayed correctly. (Note: the server I was working with uses chunked transfer encoding, which does not show the actual file size in the request header. As a result, I have to estimate that number)
+- At `src/search.js` line 409, you can change the relative path to the root folder. 
+- The Year From/To input tag is using the first four characters of the file path. You can modify that behavior at `src/search.js` line 272.
 - Change `src/mirror.png` to the logo you want. Change the `<img>` tag in `src/search.html` if you want.
-- If you would like to use a different stemmer, change `src/searcher.js` line 640
+- At `src/searcher.js` line 600, you can change the stemmer/add an encoder.
 
 ## Special Syntax
 TODO: finish writing
+
+## Motivation
+- Some might ask why I'm creating client-side solution instead of using a server-side database, like [Elasticsearch](https://en.wikipedia.org/wiki/Elasticsearch). The truth is, I don't have control over the hosting server... It's also a hassle to maintain a server, whereas I don't expect ES5 to become obsolete any time soon.
+- While there are a couple client-side full-text search engines available, such as [flexsearch](https://github.com/nextapps-de/flexsearch), [wade](https://github.com/kbrsh/wade), I choose not to use them for this project, because of following reasons: 
+    - They don't have the functionality that I want. Since one yearbook might contain multiple articles, it would be ineffective for me to show the occurrence of a phrase/word without letting my users know how they are distributed within that yearbook. Thus, I would like to have a word-level inverted index, but I cannot find those on Github. Granted, I can easily modify existing searchers to achieve this goal without adding a significant amount of resource consumption, as the maximum index is only at ~10M, which is way less than 2^30, the maximum internal integer representation for V8 engine.
+
+    - They have a rather slow initialization speed. They (flexsearch) apply stemmer (or encoder) on the *entire* text, which removed the possibility of reusing results from the stemmer. Stemmers are especially costly, as they make a lot of non-slicing operations on strings, which requires allocating new memory. My code avoids that issue by creating a cache dictionary for the stemmer, and appling stemmer on each word, so that results can get reused. By doing this, the amount of words that need to go through the stemmer is reduced to ~3% of the original count, which leads to a ~65% reduction in initialization time when compared to the former approach. It also allows the usage of more complex stemmers. I would assume that creating extra rules for stemmer or encoder (e.g. phonetic changes) won't greatly increase the initialization time. Also, my code avoids any preprocessing of the text--words that comes out of the tokenizer (which only performs a slicing operation so no extra memory allocation is needed) go directly to the cache dictionary. I found that if there is one string preprocessing (e.g. `.toLowerCase()`), the time for initialization will go up by ~30%.
+
+    - They are not built for my use case. I don't need to index a dictionary, nor do I need blazing fast search speed. All I need is initialization speed, and a reasonable search speed. (For now most of the search time is used for rendering the context SVG. Maybe I should use canvas instead...)

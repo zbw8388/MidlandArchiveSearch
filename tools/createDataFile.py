@@ -44,6 +44,8 @@ for path in listOfFiles:
 
 textFile.close()
 
+print('\n--------------\n\nFinished\n')
+
 ans = input('Would you like to remove all intermediate files? (y/n) ')
 
 if ans == 'y':

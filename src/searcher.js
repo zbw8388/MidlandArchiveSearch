@@ -65,7 +65,7 @@
                 var re = new RegExp(term,flags);
                 var results = [];
                 var result;
-                while ((result = re.exec(text))) {
+                while (result = re.exec(text)) {
                     results.push(result.index);
                 }
                 return results;
@@ -505,7 +505,7 @@
 
         var result, word, encoded;
 
-        while ((result = wordExtractor.exec(text))) {
+        while (result = wordExtractor.exec(text)) {
             word = result[0];
             encoded = encoderCache[word];
 
@@ -534,7 +534,7 @@
         var idx = [];
         var loc = [];
         var result;
-        while ((result = fileStructureRe.exec(text))) {
+        while (result = fileStructureRe.exec(text)) {
             // a memory trick so your browser can release text correctly
             loc.push((' ' + result[1]).slice(1));
             idx.push(result.index);

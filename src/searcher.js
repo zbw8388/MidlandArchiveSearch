@@ -2,8 +2,7 @@
     function Searcher(isWorker) {
         this.isWorker = isWorker;
         this.text = null;
-        this.origIndex = {};
-        this.stemIndex = {};
+        this.index = {};
         this.articleInfo = [];
         this.previousSearch = {
             result: [],
@@ -27,7 +26,7 @@
             sglQuote: /['\u2018\u2019]/g
         }
 
-        this.stemmer = this.createStemmer();
+        this.encoder = this.createEncoder();
 
         if (!isWorker && Worker && URL && URL.createObjectURL) {
             this.workers = new WorkerManager(SearcherFactory);
@@ -49,34 +48,6 @@
 
         this.previousSearch.result = [];
         this.previousSearch.contextLengthDecider = [];
-
-        function searchInOrigIndex(terms) {
-            var origIndex = self.origIndex;
-            var allResults = terms.map(function(term) {
-                return origIndex[term] || [];
-            });
-
-            // actually, i suspect that using naive 'sort' is faster here, as sort is implemented internally
-            function mergeTwo(a1, a2) {
-                var a1idx = 0;
-                var a2idx = 0;
-                var out = [];
-                while (a1idx < a1.length && a2idx < a2.length) {
-                    var cur = a1[a1idx] > a2[a2idx] ? a2[a2idx++] : a1[a1idx++];
-                    out.push(cur);
-                }
-                return out.concat(a1.slice(a1idx, a1.length), a2.slice(a2idx, a2.length));
-            }
-
-            while (allResults.length > 1) {
-                var next = [];
-                for (var i = 0; i < allResults.length; i += 2) {
-                    next.push(mergeTwo(allResults[i], allResults[i + 1] || []));
-                }
-                allResults = next;
-            }
-            return allResults[0] || [];
-        }
 
         var searchFunctions = {
             exact: function(term) {
@@ -100,26 +71,30 @@
                 return results;
             },
             partialExact: function(term) {
-                term = term.replace(self.commonRegex.nonWordCharacters, '');
-                var stemmed = self.stemmer(term);
-                var origForms = self.stemIndex[stemmed] || [];
-                var searchArr = [stemmed].concat(origForms).filter(function(q) {
-                    q = q.replace(self.commonRegex.nonWordCharacters, '');
-                    if (self.options.caseSensitive) {
-                        return q === term;
+                // idea: use the normal searching method, and then for each occurrence,
+                // verify that it's actually partialExact, or it's actually spelled like
+                // that in the original text
+                var results = self.index[self.encoder(term)] || [];
+                var wordExtractor = self.commonRegex.wordExtractor;
+                var nonWordCharacters = self.commonRegex.nonWordCharacters;
+                var caseSensitive = self.options.caseSensitive;
+                var text = self.text;
+                var wordInText;
+                results = results.filter(function(idx) {
+                    wordExtractor.lastIndex = idx;
+                    wordInText = wordExtractor.exec(text)[0];
+                    wordInText = wordInText.replace(nonWordCharacters, '');
+                    if (caseSensitive) {
+                        return wordInText === term;
                     } else {
-                        return q.toLowerCase() === term.toLowerCase();
+                        return wordInText.toLowerCase() === term.toLowerCase();
                     }
                 });
-
-                return searchInOrigIndex(searchArr);
+                wordExtractor.lastIndex = 0;
+                return results;
             },
             regular: function(term) {
-                term = term.replace(self.commonRegex.nonWordCharacters, '');
-                var stemmed = self.stemmer(term);
-                var origForms = self.stemIndex[stemmed] || [];
-                var searchArr = [stemmed].concat(origForms);
-                return searchInOrigIndex(searchArr);
+                return self.index[self.encoder(term)] || [];
             },
             extraRegular: 'regular'
         };
@@ -523,53 +498,33 @@
 
         var text = this.text;
         var wordExtractor = this.commonRegex.wordExtractor;
-        var nonWordCharacters = this.commonRegex.nonWordCharacters;
-        var stemmer = this.stemmer;
-        var origIndex = {};
+        var encoder = this.encoder;
+        var index = {};
 
-        // actually, this is the inverse of stemmer function, except for that its range
-        // is words in the original text, not indices of any kind
-        var stemIndex = {};
+        var encoderCache = {};
 
-        var result, word;
+        var result, word, encoded;
 
         while ((result = wordExtractor.exec(text))) {
-            // it turns out that I cannot find a way to apply this on the 
-            // entire string without changing the position of each word.
-            // One can change this line to support more languages
             word = result[0];
-            if (word) {
-                var dictEntry = origIndex[word];
-                if (!dictEntry) {
+            encoded = encoderCache[word];
+
+            if (encoded === undefined) {
+                encoded = encoder(word);
+                encoderCache[word] = encoded;
+            }
+
+            if (encoded.length !== 0) {
+                var dictEntry = index[encoded];
+                if (dictEntry === undefined) {
                     dictEntry = [];
-                    origIndex[word] = dictEntry;
+                    index[encoded] = dictEntry;
                 }
                 dictEntry.push(result.index);
             }
         }
 
-        var checkContainsNumberRe = /\d/;
-        for (var i in origIndex) {
-
-            // if a word contains number, it's rather meaningless to stem it
-            if (checkContainsNumberRe.test(i)) {
-                continue;
-            }
-
-            var stemmed = stemmer(i.replace(nonWordCharacters, ''));
-
-            if (stemmed === i) {
-                continue;
-            }
-
-            if (!stemIndex[stemmed]) {
-                stemIndex[stemmed] = [];
-            }
-            stemIndex[stemmed].push(i);
-        }
-
-        this.stemIndex = stemIndex;
-        this.origIndex = origIndex;
+        this.index = index;
 
         console && console.timeEnd && console.timeEnd('building lib');
     }
@@ -639,6 +594,19 @@
 
     Searcher.prototype.workersReady = function() {
         this.emitEvent('indexReady');
+    }
+
+    Searcher.prototype.createEncoder = function() {
+        var stemmer = this.createStemmer();
+        var nonWordCharacters = this.commonRegex.nonWordCharacters;
+
+        var hasNumber = /\d/;
+
+        return function encode(word) {
+            //             if (!hasNumber.test(word))
+            word = word.replace(nonWordCharacters, '');
+            return stemmer(word);
+        }
     }
 
     Searcher.prototype.createStemmer = function() {

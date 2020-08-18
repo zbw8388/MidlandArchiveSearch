@@ -14,11 +14,12 @@ A Client-Side Full-Text Search Engine for my High School's Newspaper and Yearboo
 
 \* when used with a file server and we can argue about the definition
 ## Demo
-[The Actual Archive](https://midland-school.org/midland-mirror-archive/) 
+[The Actual Archive](https://midland-school.org/midland-mirror-archive/) (Note:
+you might not be able to access it.)
 
 [Gulliver's Travels](https://raw.githack.com/zbw8388/MidlandArchiveSearch/master/demo/index.html) (Note: generated links will not work. Please just treat them as chapter titles where they should be path to files in the real setting. Year From/To function will also not work.)
 
-![Demo Gif](/demo/demo.gif?raw=true "Demo Gif")
+![Gulliver's Travels Demo](/demo/demo.gif?raw=true "Gulliver's Travels Demo")
 
 ## Use it for Your Archive
 ### Generate `text.txt` file 
@@ -63,11 +64,11 @@ In your folder with all PDF files, create a new folder, called `searcher`, and m
 
 Since this is an end product, I choose not to provide any API for changing the default behavior. Please let me know if I should!
 
-- At `src/display.js` line 39, change the file size to that of your `text.txt` and estimated yearly increase to ensure that loading progress is displayed correctly. (Note: the server I was working with uses chunked transfer encoding, which does not show the actual file size in the request header. As a result, I have to estimate that number)
-- At `src/display.js` line 409, you can change the relative path to the root folder. 
-- The Year From/To input tag is using the first four characters of the file path. You can modify that behavior at `src/display.js` line 272.
+- At `src/display.js` line 57-59, change the file size to that of your `text.txt` and estimated yearly increase to ensure that loading progress is displayed correctly. (Note: the server I was working with uses chunked transfer encoding, which does not show the actual file size in the request header. As a result, I have to estimate that number)
+- At `src/display.js` line 539, you can change the relative path to the root folder of your publication archive. 
+- The Year From/To input tag is using the first four characters of the file path. You can modify that behavior at `src/display.js` line 374.
 - Change `src/mirror.png` to the logo you want. Change the `<img>` tag in `src/index.html` if you want.
-- At `src/searcher.js` line 600, you can change the stemmer/add an encoder.
+- At `src/searcher.js` line 693, you can change the stemmer/add an encoder.
 
 ## Special Syntax
 TODO: finish writing

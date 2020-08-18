@@ -1,3 +1,8 @@
+/**
+ * Handles all HTML elements on the page, except for the context bubble,
+ * which will get handled by `Context` 
+ * @constructor
+ */
 function Display() {
     this.loader = gel('loaderContainer');
     this.progressBar = gel('mask');
@@ -29,18 +34,38 @@ function Display() {
     window.addEventListener('scroll', this.onScroll.bind(this));
 }
 
-Display.prototype.onScroll = function(e) {
+/**
+ * Renders more content if any once reaches the end of the page
+ * @private
+ * @listens Event
+ */
+Display.prototype.onScroll = function() {
     if (this.state === 'searchPage' && (window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0) > (document.body.offsetHeight - window.outerHeight)) {
         this.renderResults();
     }
 }
 
+/**
+ * Since it would be troublesome to update the real file size if the archive
+ * gets updated every six months (maybe not i guess i'm just lazy), having a
+ * good estimate of the file size will help user see a better progress bar.
+ * Actually, the precision shouldn't matter as only 85% of the progress bar is
+ * reserved for file loading. 
+ * @private
+ */
 Display.prototype.estimateFileSize = function() {
     var yearlyIncrease = 200000;
     var startYear = 2019;
     var startFileSize = 13275000;
-    this.fileSize = 13275000 + yearlyIncrease * ((new Date().getUTCFullYear()) - startYear);
+    this.fileSize = startFileSize + yearlyIncrease * ((new Date().getUTCFullYear()) - startYear);
 }
+
+/**
+ * Measures the full width of the title so the mask for loading bar can move
+ * correctly. There are two types of the main title: one with line wrap and one
+ * without. Their full width differs by a space.
+ * @private
+ */
 Display.prototype.measureProgressBarTotalLength = function() {
     var measurements = document.getElementsByClassName('lengthMeasurement');
     for (var i = measurements.length - 1; i >= 0; i--) {
@@ -52,6 +77,11 @@ Display.prototype.measureProgressBarTotalLength = function() {
     });
 }
 
+/**
+ * Updates the main loading bar
+ * @private
+ * @param {number} percent 
+ */
 Display.prototype.updateProgressBarPercentage = function(percent) {
     this.progress = percent;
     var totLengthArr = this.progressBarTotalLength;
@@ -62,6 +92,14 @@ Display.prototype.updateProgressBarPercentage = function(percent) {
     }
     this.progressBar.style.backgroundPositionX = (percent * totLength).toFixed(2) + 'px';
 }
+
+/**
+ * Updates the main progress bar every 250ms based on how much file has
+ * downloaded. It consists 85% of the progress bar. Uses the estimated file
+ * size.
+ * @public
+ * @param {ProgressEvent} e 
+ */
 Display.prototype.onDownloadProgress = function(e) {
     if (this.fileSize && new Date() - this.lastLoadingBarRefreshed > 250) {
         this.lastLoadingBarRefreshed = new Date();
@@ -69,6 +107,11 @@ Display.prototype.onDownloadProgress = function(e) {
     }
 }
 
+/**
+ * Displays fake progress while the CPU builds the inverted index
+ * @public
+ * @param {Date} timeLoaded 
+ */
 Display.prototype.fileLoaded = function(timeLoaded) {
     this.state = 'buildingIndex';
 
@@ -128,6 +171,11 @@ Display.prototype.fileLoaded = function(timeLoaded) {
     fakeUpdate();
 }
 
+/**
+ * Removes the loader div and reveals the search bar when the index is built
+ * @private
+ * @listens Searcher~indexReady
+ */
 Display.prototype.indexReady = function() {
     this.state = 'aboutPage';
 
@@ -139,19 +187,28 @@ Display.prototype.indexReady = function() {
     this.searchBar.focus();
     loader.addEventListener('transitionend', function(e) {
         if (e.target === loader && e.propertyName === 'opacity') {
+            // well, we have some memory leakage going on here, but I don't
+            // care as there's only one element in trouble
             loader.parentNode.removeChild(loader);
         }
     });
 }
 
+/**
+ * @public
+ */
 Display.prototype.prepareSearchPage = function() {
     this.state = 'searchPage';
+    var links = gel('links');
+    links.parentNode.removeChild(links);
     this.renderSearchOptions();
     this.setupTableHeader();
 }
+
+/**
+ * @private
+ */
 Display.prototype.setupTableHeader = function() {
-    var links = gel('links');
-    links.parentNode.removeChild(links);
     var table = this.table;
     var columns = ['File', 'Occurrence', 'Context'];
     var sortable = this.sortable;
@@ -173,23 +230,37 @@ Display.prototype.setupTableHeader = function() {
     headerRow.children[0].classList.add('up');
     this.table = tbody;
 }
+
+/**
+ * Renders options based on the `inputs`. I think I improve the way a button is
+ * rendered?
+ * @private
+ */
 Display.prototype.renderSearchOptions = function() {
     var inputSpan = gel('inputs');
     for (var i in inputs) {
         var settings = inputs[i];
-        var label = el('label', inputSpan);
+        var label = el('label', inputSpan, settings.class);
         var span = el('span', label);
         var input = el('input', label);
 
         span.innerHTML = settings.label + ' ';
 
-        update(input, settings.properties);
+        for (var i in settings.properties) {
+            input[i] = settings.properties[i];
+        }
         for (var j in settings.events) {
             input.addEventListener(j, settings.events[j]);
         }
     }
 }
 
+/**
+ * Changes how search result is sorted
+ * @private
+ * @param {MouseEvent} e 
+ * @listens MouseEvent
+ */
 Display.prototype.onSortingChange = function(e) {
     var target = e.currentTarget;
     if (target === this.currentSorting) {
@@ -206,9 +277,14 @@ Display.prototype.onSortingChange = function(e) {
     this.refreshTable();
 }
 
+/**
+ * Distribute and display the search result data
+ * @private
+ * @param {searchResult} data see the return element from `Searcher.search`
+ * @listens Searcher~searchFinished
+ */
 Display.prototype.feedData = function(data) {
     // i should probably just write an adapter 
-    var self = this;
 
     var searchTermData = data['searchTerms'];
     var hiddenWords = data['stopWords'];
@@ -220,17 +296,33 @@ Display.prototype.feedData = function(data) {
     this.renderSearchTerms(searchTermData, hiddenWords);
     this.processAndRenderTableData();
 }
+
+/**
+ * Clears the search term div
+ * @public
+ */
 Display.prototype.clearSearchTerms = function() {
     while (this.searchTerms.firstChild) {
         this.searchTerms.removeChild(this.searchTerms.lastChild);
     }
 }
+
+/**
+ * Clears the result table
+ * @public
+ */
 Display.prototype.clearTable = function() {
     while (this.table.firstChild) {
         this.table.removeChild(this.table.lastChild);
     }
 }
 
+/**
+ * @private
+ * @param {string[]} termArr the text of the term
+ * @param {boolean[]} initialHiddenWords should be stopwords that are cluttering
+ * the result
+ */
 Display.prototype.renderSearchTerms = function(termArr, initialHiddenWords) {
     var frag = document.createDocumentFragment();
     var self = this;
@@ -249,6 +341,12 @@ Display.prototype.renderSearchTerms = function(termArr, initialHiddenWords) {
     this.searchTerms.appendChild(frag);
 }
 
+/**
+ * Toggles if a keyword is displayed in the result
+ * @private
+ * @param {MouseEvent} event 
+ * @listens MouseEvent
+ */
 Display.prototype.handleKeywordClick = function(event) {
     var wrapper = event.currentTarget;
     var wrapperClass = wrapper.className;
@@ -259,6 +357,10 @@ Display.prototype.handleKeywordClick = function(event) {
     this.processAndRenderTableData();
 }
 
+/**
+ * Applies filtering rules and sorting options. Then renders the table.
+ * @private
+ */
 Display.prototype.processAndRenderTableData = function() {
     this.clearTable();
 
@@ -296,15 +398,31 @@ Display.prototype.processAndRenderTableData = function() {
     this.renderResults();
 }
 
+/**
+ * @private
+ * @returns {[string, string]}
+ */
 Display.prototype.getSortingOption = function() {
     var sorting = this.currentSorting;
     return [sorting.dataset.index, sorting.classList.item(1)];
 }
 
+/**
+ * Applies new constraints by rerendering the table. Maybe it would be more
+ * efficient if some reources is preserverd, but since it only renders first
+ * fifty of them, I guess it shouldn't matter that much.
+ * @private
+ */
 Display.prototype.refreshTable = function() {
     this.processAndRenderTableData();
 }
 
+/**
+ * Renders results from filtered data. It uses processors, which made this
+ * function a bit abstract, but also lost some resource sharing abilities. I
+ * will need to find a way to improve this.
+ * @private 
+ */
 Display.prototype.renderResults = function() {
     var data = this.tableData;
     var singleRender = 50;
@@ -338,7 +456,13 @@ Display.prototype.renderResults = function() {
     this.renderedResults = i;
 }
 
-Display.prototype.generateindexPlot = function(data) {
+/**
+ * Generates the index plot for each search term
+ * @private
+ * @param {resultDetails} data see `Searcher.search` for more info
+ * @returns {HTMLElement}
+ */
+Display.prototype.generateIndexPlot = function(data) {
     var box = el('div', null, 'indexPlot');
     var svg = els('svg', box);
     attr(svg, 'xmlns', 'http://www.w3.org/2000/svg');
@@ -401,19 +525,30 @@ Display.prototype.generateindexPlot = function(data) {
     return box;
 }
 
+/**
+ * This is a bad design. Though it made processing discrete, it also made it
+ * hard to share some resources. I will need to look at more web applications or
+ * frameworks to find out a more elegant yet powerful way to do this.
+ * @private
+ */
 Display.prototype.dataRenderProcessors = [function(data, ele) {
-    var a = el('a');
+    var a = el('a', ele);
     a.target = '_blank';
     data = searcher.getLocById(data);
     a.innerHTML = data;
     a.href = '../' + data;
-    ele.appendChild(a);
+    a.title = data;
 }
 , null, function(data, ele, self) {
-    ele.appendChild(self.generateindexPlot(data))
+    ele.appendChild(self.generateIndexPlot(data));
 }
-]
+];
 
+/**
+ * Renders a placeholder at the end of the result table
+ * @public
+ * @param {string} text the text to show on the placeholder
+ */
 Display.prototype.renderPlaceHolder = function(text) {
     var row = el('tr', this.table);
     var cell = el('td', row, 'placeHolder');
@@ -421,6 +556,12 @@ Display.prototype.renderPlaceHolder = function(text) {
     cell.innerHTML = text;
 }
 
+/**
+ * Sets the year constraint. Note that two digit year will get added by 1900
+ * @public
+ * @param {string} input a string that represents a year or null 
+ * @param {string} type whether it is from or to year constraint
+ */
 Display.prototype.changeDisplayYearRange = function(input, type) {
     var idx = (type === 'to') * 1;
     var parsed;
@@ -437,20 +578,7 @@ Display.prototype.changeDisplayYearRange = function(input, type) {
 
 // i'm too lazy to change this...
 var inputs = [{
-    label: 'Case Sensitive:',
-    properties: {
-        type: 'checkbox',
-    },
-    events: {
-        change: function(e) {
-            searcher.setOptions({
-                caseSensitive: e.target.checked
-            });
-            doSearch();
-        }
-    }
-}, {
-    label: 'Match Exact:',
+    label: 'Exact Matching:',
     properties: {
         type: 'checkbox'
     },
@@ -486,6 +614,32 @@ var inputs = [{
     events: {
         change: function(e) {
             e.target.value = display.changeDisplayYearRange(e.target.value, 'to');
+        }
+    }
+}, {
+    label: '',
+    class: 'showAll',
+    properties: {
+        type: 'button',
+        value: 'Show All...'
+    },
+    events: {
+        click: function(e) {
+            e.currentTarget.parentNode.parentNode.classList.add('showAdvanced');
+        }
+    }
+}, {
+    label: 'Special Syntax Case Sensitive:',
+    class: 'advanced',
+    properties: {
+        type: 'checkbox',
+    },
+    events: {
+        change: function(e) {
+            searcher.setOptions({
+                caseSensitive: e.target.checked
+            });
+            doSearch();
         }
     }
 }]

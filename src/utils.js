@@ -1,18 +1,31 @@
-function update(obj, newobj) {
-    for (var i in newobj) {
-        obj[i] = newobj[i]
-    }
-}
-
+/**
+ * Shorthand for document.getElementById
+ * @param {string} id element id
+ * @returns {HTMLElement}
+ */
 function gel(id) {
     return document.getElementById(id);
 }
 
+/**
+ * Create a new elemnt
+ * @param {string} type the type of the new element
+ * @param {HTMLElement=} parent new element's parent
+ * @param {string=} classes classes of the new element as a string
+ * @returns {HTMLElement} the new element
+ */
 function el(type, parent, classes) {
     var e = document.createElement(type);
     return handleParentClasses(e, parent, classes);
 }
 
+/**
+ * Create a new SVG elemnt
+ * @param {string} type the type of the new element
+ * @param {SVGElement=} parent new element's parent
+ * @param {string=} classes classes of the new element as a string
+ * @returns {SVGElement} the new SVG element
+ */
 function els(type, parent, classes) {
     var e = document.createElementNS("http://www.w3.org/2000/svg", type);
     return handleParentClasses(e, parent, classes);
@@ -25,10 +38,22 @@ function handleParentClasses(e, parent, classes) {
     return e;
 }
 
+/**
+ * Shorthand for Element.setAttribute
+ * @param {HTMLElement} e 
+ * @param {string} prop 
+ * @param {string} val 
+ */
 function attr(e, prop, val) {
     e.setAttribute(prop, val);
 }
 
+/**
+ * Performs a GET request
+ * @param {string} path 
+ * @param {Function=} onprogress progress listener
+ * @param {Function=} onloadend the callback that handles the response
+ */
 function getResource(path, onprogress, onloadend) {
     var client = new XMLHttpRequest();
     client.open('GET', path);
@@ -41,6 +66,12 @@ function getResource(path, onprogress, onloadend) {
     client.send();
 }
 
+/**
+ * Checks if the finger is still inside the event handler attatched element
+ * at a touchend event 
+ * @param {TouchEvent} event the touch event to check for
+ * @returns {boolean}
+ */
 function touchEndEventInBound(event) {
     if (event.type !== 'touchend')
         return true;
@@ -54,6 +85,14 @@ function touchEndEventInBound(event) {
     return eleX <= touchX && touchX <= eleX + eleW && eleY <= touchY && touchY <= eleY + eleH;
 }
 
+/**
+ * Listens for both mousedown and touchend event, but only call the callback once
+ * if both events fired at the same time (which happens on my laptop)
+ * @constructor
+ * @param {HTMLElement} e the element 
+ * @param {Function} func the callback
+ * @param {*} thisEle `this` variable for the callback
+ */
 function TouchMouseEventListener(e, func, thisEle) {
     this.func = func;
     this.thisEle = thisEle;

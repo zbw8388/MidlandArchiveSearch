@@ -64,6 +64,18 @@ div#inputs label {
     display: inline-block;
 }
 
+div#inputs .advanced {
+    display: none;
+}
+
+div#inputs.showAdvanced .advanced {
+    display: inline-block;
+}
+
+div#inputs.showAdvanced .showAll {
+    display: none;
+}
+
 input#searchBar {
     font-size: 1.25em;
     padding: 5px 10px;

@@ -1,3 +1,8 @@
+/**
+ * Manages the context bubble -- the one that appears once you hover over a bar
+ * in the context section which provides the context around the "cursor"
+ * @constructor
+ */
 function Context() {
     this.bubble = el('div', document.body, 'contextWrapper');
     var contextOverflowBlocker = el('div', this.bubble, 'contextOverflowBlocker')
@@ -12,7 +17,7 @@ function Context() {
 
     this.bubbleArticleId = null;
     this.bubbleSvgWrapper = null;
-    this.bubbleArticleIndex = null;
+    this.bubbleIndexInArticle = null;
     this.cursorInitiatedBubbleChange = false;
     this.prevRange = [null, null];
     this.turnPageMethod = 0;
@@ -23,7 +28,7 @@ function Context() {
     this.cursorSvgWrapper = null;
     this.cursorArticleId = null;
     this.cursorInitiatedArticleChangeHandled = false;
-    this.cursorArticleIndex = null;
+    this.cursorIndexInArticle = null;
     this.timeout = null;
 
     this.data = [];
@@ -37,8 +42,13 @@ function Context() {
     searcher.registerEventListener('contextFinished', this.contextReady.bind(this));
 }
 
+/**
+ * Initialize the four controls that occupy the corners of context bubbles for
+ * users to navigate within an issue
+ * @private
+ * @param {HTMLElement} parent 
+ */
 Context.prototype.generateControl = function(parent) {
-    var bubble = this.bubble;
     var self = this;
     [['\u2039', '\u203a'], ['\u00ab', '\u00bb']].forEach(function(a, i) {
         a.forEach(function(inner, j) {
@@ -50,7 +60,15 @@ Context.prototype.generateControl = function(parent) {
     });
 }
 
+/**
+ * Sets up the cursor when the user starts interacting with bars in the context
+ * section 
+ * @public
+ * @param {UIEvent} event 
+ * @listens UIEvent
+ */
 Context.prototype.enter = function(event) {
+    // removes the old cursor if it's still there
     if (this.cursor) {
         attr(this.cursor, 'class', 'cursor');
     }
@@ -58,15 +76,21 @@ Context.prototype.enter = function(event) {
     this.cursorSvgWrapper = svg.parentNode;
     this.cursor = svg.getElementById('cursor');
     this.cursorArticleId = parseInt(svg.parentNode.parentNode.parentNode.dataset.id);
-    this.cursorArticleIndex = null;
+    this.cursorIndexInArticle = null;
     attr(this.cursor, 'class', 'cursor show');
     this.move(event);
 }
 
+/**
+ * Moves the cursor inside context bar and starts a timeout for showing the
+ * context around that cursor when the user moves finger or mouse
+ * @public
+ * @param {UIEvent} event 
+ * @listens UIEvent
+ */
 Context.prototype.move = function(event) {
     if (!this.cursor)
         return;
-    // since x's are discrete laptop or phone, let's just reduce the amount of updates;
 
     var x = Math.round(event.pageX || event.touches[0].pageX);
 
@@ -86,58 +110,111 @@ Context.prototype.move = function(event) {
         var percentInSvg = (x - div.offsetLeft) / div.offsetWidth;
         percentInSvg = Math.max(0, Math.min(plotWidthPercent, percentInSvg));
 
-        var cursorArticleIndex = Math.round(percentInSvg / plotWidthPercent * articleLength);
+        var cursorIndexInArticle = Math.round(percentInSvg / plotWidthPercent * articleLength);
 
-        var cloestTermIndex = this.findCloestTermIndex(cursorArticleId, cursorArticleIndex);
-        var cloestBarArticleIndex = currentArticle['termIndices'][cloestTermIndex];
-        var cloestBarInSvg = cloestBarArticleIndex / articleLength * plotWidthPercent;
+        var cloestTermIndex = this.findCloestTermIndex(cursorArticleId, cursorIndexInArticle);
+        var cloestTermIndexInArticle = currentArticle['termIndices'][cloestTermIndex];
+        var cloestTermInSvg = cloestTermIndexInArticle / articleLength * plotWidthPercent;
 
-        if (Math.abs(x - div.offsetLeft - cloestBarInSvg * div.offsetWidth) < snapEpsilon) {
-            percentInSvg = cloestBarInSvg;
-            cursorArticleIndex = cloestBarArticleIndex;
+        if (Math.abs(x - div.offsetLeft - cloestTermInSvg * div.offsetWidth) < snapEpsilon) {
+            percentInSvg = cloestTermInSvg;
+            cursorIndexInArticle = cloestTermIndexInArticle;
         }
 
-        if (this.cursorArticleIndex !== cursorArticleIndex) {
-            // cursor position has been changed, remove waiting context display call
+        if (this.cursorIndexInArticle !== cursorIndexInArticle) {
+            // current cursor article has been changed, remove context bubble
+            // timeout
             clearTimeout(this.timeout);
             this.cursorInitiatedArticleChangeHandled = false;
 
-            this.cursorArticleIndex = cursorArticleIndex;
-            //             this.cloestTermIndex = cloestTermIndex;
+            this.cursorIndexInArticle = cursorIndexInArticle;
 
             var percentInSvgText = (percentInSvg * 100).toFixed(2) + '%';
             attr(this.cursor, 'x1', percentInSvgText);
             attr(this.cursor, 'x2', percentInSvgText);
 
-            this.createContextTimeout(cursorArticleId, cursorArticleIndex, this.SHOWBUBBLEWAITTIME);
+            this.createContextTimeout(cursorArticleId, cursorIndexInArticle, this.SHOWBUBBLEWAITTIME);
         }
     }
 }
 
-Context.prototype.createContextTimeout = function(cursorArticleId, cursorArticleIndex, time) {
+/**
+ * Removes the cursor when user's gesture leaves the bar. It also detects the
+ * touch click event, which shows the context 
+ * @public
+ * @param {UIEvent} event 
+ * @listens UIEvent
+ */
+Context.prototype.leave = function(event) {
+    if (this.cursor) {
+        attr(this.cursor, 'class', 'cursor');
+    }
+    if (event.type === 'touchend') {
+        var top = this.cursorSvgWrapper.offsetTop;
+        // if touch left the screen out of the same element, we do not consider it a click
+        if (top <= event.changedTouches[0].pageY && event.changedTouches[0].pageY <= top + this.cursorSvgWrapper.offsetHeight) {
+            this.clickListener();
+        }
+    }
+    this.prevX = null;
+    this.cursorArticleId = null;
+    this.cursorSvgWrapper = null;
+    this.cursor = null;
+}
+
+/**
+ * Creates a timeout for showing context around `cursorIndexInArticle`. The
+ * context won't be displayed if user gesture has already left the bar after the
+ * timeout.
+ * @private
+ * @param {number} cursorArticleId 
+ * @param {number} cursorIndexInArticle 
+ * @param {number} time 
+ */
+Context.prototype.createContextTimeout = function(cursorArticleId, cursorIndexInArticle, time) {
     var self = this;
     this.timeout = setTimeout(function() {
-        if (self.cursorArticleId === cursorArticleId && self.cursorArticleIndex === cursorArticleIndex && !self.cursorInitiatedArticleChangeHandled) {
-            self.getContext(cursorArticleId, cursorArticleIndex, 0, true);
+        if (self.cursorArticleId === cursorArticleId && self.cursorIndexInArticle === cursorIndexInArticle && !self.cursorInitiatedArticleChangeHandled) {
+            self.getContext(cursorArticleId, cursorIndexInArticle, 0, true);
         }
     }, time);
 }
 
-Context.prototype.clickListener = function(event) {
+/**
+ * Displays the context around the cursor when the bar is clicked
+ * @public
+ * @listens UIEvent
+ */
+Context.prototype.clickListener = function() {
     if (!this.cursorInitiatedArticleChangeHandled) {
-        this.getContext(this.cursorArticleId, this.cursorArticleIndex, 0, true);
+        this.getContext(this.cursorArticleId, this.cursorIndexInArticle, 0, true);
     }
 }
 
+/**
+ * Shows user the context around `middleIndex` in article `articleId`. 
+ *
+ * This function computes the rough range of context and submits a `getContext`
+ * request to `sercher` that will lead to displaying the context bubble. If the
+ * result is already buffered, directly calls `showBubble`. If an article
+ * argument is missing, it will get replaced by the status of current bubble.
+ * @private
+ * @param {number=} articleId 
+ * @param {number=} middleIndex 
+ * @param {number} [overlapDirection=0] the action (move back, do nothing, or
+ * move forward the range) when there's an overlap between the requested article
+ * range and currently displaying range
+ * @param {boolean} [cursorInitiated=false] 
+ */
 Context.prototype.getContext = function(articleId, middleIndex, overlapDirection, cursorInitiated) {
-    middleIndex = typeof middleIndex === 'number' ? middleIndex : this.bubbleArticleIndex;
+    middleIndex = typeof middleIndex === 'number' ? middleIndex : this.bubbleIndexInArticle;
     articleId = typeof articleId === 'number' ? articleId : this.bubbleArticleId;
     overlapDirection = overlapDirection || 0;
 
     // cursor has initiated an article change
     if (this.bubbleArticleId !== articleId) {
         this.bubbleArticleId = articleId;
-        this.bubbleArticleIndex = null;
+        this.bubbleIndexInArticle = null;
         this.prevRange = [null, null];
         this.bubbleSvgWrapper = this.cursorSvgWrapper;
     }
@@ -171,7 +248,14 @@ Context.prototype.getContext = function(articleId, middleIndex, overlapDirection
         searcher.getContext(articleId, [st, fi]);
     }
 }
-
+/**
+ * Converts the `Searcher.getContext` result into an HTML element and passes it to
+ * `showBubble` for display
+ * @private
+ * @param {[string, [number, number, number][], [number, number]]} data the
+ * result from `Searcher.getContext`
+ * @listens Searcher~contextFinished
+ */
 Context.prototype.contextReady = function(data) {
     var newText = el('div', null, 'contextText');
     var hiddenWords = this.data['hiddenWords'];
@@ -198,6 +282,12 @@ Context.prototype.contextReady = function(data) {
     this.showBubble(newText);
 }
 
+/**
+ * Moves or reveals the bubble and updates the content within the bubble 
+ * @private
+ * @param {HTMLElement=} newText the new context for display. If ignored, it
+ * will use buffered data
+ */
 Context.prototype.showBubble = function(newText) {
     var bubble = this.bubble;
 
@@ -221,8 +311,8 @@ Context.prototype.showBubble = function(newText) {
     newText = this.bubbleTextWrapperController.getCurrentItem()[0];
     this.prevRange = this.bubbleTextWrapperController.getCurrentItem()[1];
 
-    var bubbleArticleIndex = (this.prevRange[0] + this.prevRange[1]) >> 1;
-    var percentInSvg = bubbleArticleIndex / this.data[this.bubbleArticleId]['articleLength'] * this.data[this.bubbleArticleId]['plotWidthPercent'];
+    var bubbleIndexInArticle = (this.prevRange[0] + this.prevRange[1]) >> 1;
+    var percentInSvg = bubbleIndexInArticle / this.data[this.bubbleArticleId]['articleLength'] * this.data[this.bubbleArticleId]['plotWidthPercent'];
     var x = this.bubbleSvgWrapper.offsetLeft + this.bubbleSvgWrapper.offsetWidth * percentInSvg;
 
     var bubbleHeight = newText.offsetHeight;
@@ -249,10 +339,17 @@ Context.prototype.showBubble = function(newText) {
         bubble.classList.remove('cursorInitiated');
     }
 
-    this.bubbleArticleIndex = bubbleArticleIndex;
+    this.bubbleIndexInArticle = bubbleIndexInArticle;
 
 }
 
+/**
+ * Closes the bubble when the user clicks somewhere other than the bubble or the
+ * context bar, or when the user resizes the screen
+ * @private
+ * @param {UIEvent} event 
+ * @listens UIEvent
+ */
 Context.prototype.closeBubbleListener = function(event) {
     var bubble = this.bubble;
 
@@ -270,6 +367,10 @@ Context.prototype.closeBubbleListener = function(event) {
     }
 }
 
+/**
+ * Closes the bubble
+ * @private
+ */
 Context.prototype.closeBubble = function() {
     var bubble = this.bubble;
     // i actually cannot reset other style elements here, as 
@@ -279,12 +380,19 @@ Context.prototype.closeBubble = function() {
 
     this.bubbleArticleId = null;
     this.bubbleSvgWrapper = null;
-    this.bubbleArticleIndex = null;
+    this.bubbleIndexInArticle = null;
     this.prevRange = [null, null];
     this.turnPageMethod = 0;
     this.hitArticleEnd = 0;
 }
 
+/**
+ * Moves the context when the user clicks any of four control buttons in the
+ * context bubble
+ * @private
+ * @param {UIEvent} event
+ * @listens UIEvent 
+ */
 Context.prototype.controlListener = function(event) {
     if (!touchEndEventInBound(event))
         return;
@@ -297,17 +405,17 @@ Context.prototype.controlListener = function(event) {
 
     var direction = event.currentTarget.classList.contains('right') ? 1 : -1;
 
-    var newBubbleArticleIndex;
+    var newBubbleIndexInArticle;
 
     if (type === 'nextTerm') {
         var termIndices = this.data[this.bubbleArticleId]['termIndices'];
         var prevRange = this.prevRange;
 
-        var articleIndexOfInterest = prevRange[(direction + 1) >> 1];
+        var indexInArticleOfInterest = prevRange[(direction + 1) >> 1];
 
-        var newIndex = this.findCloestTermIndex(this.bubbleArticleId, articleIndexOfInterest);
+        var newIndex = this.findCloestTermIndex(this.bubbleArticleId, indexInArticleOfInterest);
 
-        if ((articleIndexOfInterest > termIndices[newIndex]) ^ (direction === -1)) {
+        if ((indexInArticleOfInterest > termIndices[newIndex]) ^ (direction === -1)) {
             newIndex += direction;
         }
 
@@ -318,56 +426,55 @@ Context.prototype.controlListener = function(event) {
             newIndex = 0;
             direction = 0;
         }
-        newBubbleArticleIndex = termIndices[newIndex];
+        newBubbleIndexInArticle = termIndices[newIndex];
     } else {
         // if we reach the end of an article, start from the beginning
         if (this.hitArticleEnd === direction) {
-            newBubbleArticleIndex = (this.data[this.bubbleArticleId]['articleLength'] - 1) * (direction === -1);
+            newBubbleIndexInArticle = (this.data[this.bubbleArticleId]['articleLength'] - 1) * (direction === -1);
             direction = 0;
         }
     }
 
-    this.getContext(null, newBubbleArticleIndex, direction);
+    this.getContext(null, newBubbleIndexInArticle, direction);
 
 }
 
-Context.prototype.findCloestTermIndex = function(articleId, articleIndex) {
-    var dataArr = this.data[articleId]['termIndices']
+/**
+ * Finds the index of the cloest term. Note: this index refers to the index in
+ * the array of all terms, rather than the index in an article.
+ * @private
+ * @param {number} articleId 
+ * @param {number} indexInArticle 
+ * @returns {number} 
+ */
+Context.prototype.findCloestTermIndex = function(articleId, indexInArticle) {
+    var termIndices = this.data[articleId]['termIndices']
       , st = 0
-      , fi = dataArr.length;
+      , fi = termIndices.length;
     var k, cloest;
     while (fi - st > 1) {
         k = (fi + st) >> 1;
-        if (dataArr[k] > articleIndex)
+        if (termIndices[k] > indexInArticle)
             fi = k;
         else
             st = k;
     }
-    if (dataArr[st + 1] === undefined) {
+    if (termIndices[st + 1] === undefined) {
         cloest = st;
     } else {
-        cloest = Math.abs(articleIndex - dataArr[st]) > Math.abs(articleIndex - dataArr[st + 1]) ? st + 1 : st;
+        cloest = Math.abs(indexInArticle - termIndices[st]) > Math.abs(indexInArticle - termIndices[st + 1]) ? st + 1 : st;
     }
     return cloest;
 }
 
-Context.prototype.leave = function(event) {
-    if (this.cursor) {
-        attr(this.cursor, 'class', 'cursor');
-    }
-    if (event.type === 'touchend') {
-        var top = this.cursorSvgWrapper.offsetTop;
-        // if touch left the screen out of the same element, we do not consider it a click
-        if (top <= event.changedTouches[0].pageY && event.changedTouches[0].pageY <= top + this.cursorSvgWrapper.offsetHeight) {
-            this.clickListener();
-        }
-    }
-    this.prevX = null;
-    this.cursorArticleId = null;
-    this.cursorSvgWrapper = null;
-    this.cursor = null;
-}
-
+/**
+ * Process the search result and term display options and stores it for later
+ * use
+ * @public
+ * @param {[number, number[], resultDetails][]} data searchResult from `searcher.search`
+ * @param {boolean[]} hiddenWords signals whether each term should get
+ * displayed or not
+ */
 Context.prototype.feedData = function(data, hiddenWords) {
     this.closeBubble();
 
